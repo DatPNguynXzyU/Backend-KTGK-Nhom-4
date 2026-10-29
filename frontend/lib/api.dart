@@ -3,7 +3,7 @@ import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class Api {
-  static const base = String.fromEnvironment('API_BASE_URL');
+  static const base = String.fromEnvironment('API_BASE_URL', defaultValue: 'https://phamnguyentuandat-2380614580-api.onrender.com');
   static const storage = FlutterSecureStorage();
   String? token;
   bool get configured {
