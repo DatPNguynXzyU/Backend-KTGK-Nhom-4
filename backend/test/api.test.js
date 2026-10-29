@@ -60,3 +60,14 @@ test('registration cannot grant admin; staff cannot access family data',async()=
  await request(app).get('/staff/dashboard').set(agent(a.token)).expect(200);
  await request(app).post('/children').set(agent(a.token)).send({name:'An',age:9,daily_limit:90}).expect(403);
 });
+
+test('Google exchange for password account requires OTP and preserves account',async()=>{
+ const u=await register();const {randomUUID}=await import('node:crypto');const verifier='v'.repeat(40),code='c'.repeat(40);
+ await pool.query("INSERT INTO challenges(id,user_id,kind,digest,expires_at,payload) VALUES($1,$2,'oauth-exchange',$3,now()+interval '1 minute',$4)",[randomUUID(),u.user.id,hash(code),JSON.stringify({verifierHash:hash(verifier)})]);
+ await request(app).post('/auth/google/exchange').send({code,verifier:'wrong'.repeat(8)}).expect(401);
+ const r=await request(app).post('/auth/google/exchange').send({code,verifier}).expect(200);
+ assert.equal(r.body.requiresOtp,true);assert.equal(r.body.token,undefined);
+ const verified=await request(app).post('/auth/otp').send({challengeId:r.body.challengeId,code:mails.at(-1).code}).expect(200);
+ assert.equal(verified.body.user.id,u.user.id);
+ await request(app).post('/auth/google/exchange').send({code,verifier}).expect(401);
+});

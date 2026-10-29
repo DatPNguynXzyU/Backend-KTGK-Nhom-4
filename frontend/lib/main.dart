@@ -162,14 +162,22 @@ class _LoginState extends State<Login> {
     );
     final c = Uri.parse(result).queryParameters['code'];
     if (c == null) throw Exception('Google chưa trả mã xác thực');
-    await enter(
-      Map<String, dynamic>.from(
-        await api.call('POST', '/auth/google/exchange', {
-          'code': c,
-          'verifier': verifier,
-        }),
-      ),
+    final response = Map<String, dynamic>.from(
+      await api.call('POST', '/auth/google/exchange', {
+        'code': c,
+        'verifier': verifier,
+      }),
     );
+    if (response['requiresOtp'] == true) {
+      if (!mounted) return;
+      setState(() {
+        challenge = response['challengeId'];
+        code.clear();
+      });
+      notify(context, response['message']);
+      return;
+    }
+    await enter(response);
   });
   @override
   Widget build(BuildContext context) => Scaffold(

@@ -64,12 +64,12 @@ export function createApp({pool,sendMail,env=process.env}) {
   const email=z.string().email().parse(g.email).toLowerCase();let u=(await q('SELECT * FROM users WHERE email=$1',[email])).rows[0];
   if(!u)u=(await q('INSERT INTO users(id,email,username,name,verified) VALUES($1,$2,$3,$4,true) RETURNING *',[randomUUID(),email,'g_'+randomUUID().replaceAll('-',''),g.name||email])).rows[0];
   // Existing password accounts must verify their normal email OTP before account linking.
-  if(u.password)fail(409,'Email đã có tài khoản mật khẩu. Hãy đăng nhập bằng mật khẩu và OTP.');
+  // Exchange requires email OTP for existing password accounts; never issue a session directly.
   const code=opaque();await q("INSERT INTO challenges(id,user_id,kind,digest,expires_at,payload) VALUES($1,$2,'oauth-exchange',$3,now()+interval '1 minute',$4)",[randomUUID(),u.id,hash(code),JSON.stringify(ch.payload)]);res.redirect('childguard://auth?code='+code);
  }));
  app.post('/auth/google/exchange',run(async(req,res)=>{
   const b=z.object({code:z.string().min(20).max(100),verifier:z.string().min(32).max(100)}).parse(req.body);
-  const ch=(await q("DELETE FROM challenges WHERE digest=$1 AND kind='oauth-exchange' AND payload->>'verifierHash'=$2 AND expires_at>now() RETURNING *",[hash(b.code),hash(b.verifier)])).rows[0];if(!ch)fail(401,'Mã OAuth không hợp lệ');const u=(await q('SELECT * FROM users WHERE id=$1',[ch.user_id])).rows[0];res.json(session(u));
+  const ch=(await q("DELETE FROM challenges WHERE digest=$1 AND kind='oauth-exchange' AND payload->>'verifierHash'=$2 AND expires_at>now() RETURNING *",[hash(b.code),hash(b.verifier)])).rows[0];if(!ch)fail(401,'Mã OAuth không hợp lệ');const u=(await q('SELECT * FROM users WHERE id=$1',[ch.user_id])).rows[0];if(!u)fail(401,'Tài khoản không còn tồn tại');if(u.password){res.json({...await challenge(u,'login'),requiresOtp:true});return;}res.json(session(u));
  }));
  app.use(authenticated);
  app.get('/me',(req,res)=>res.json(publicUser(req.user)));
