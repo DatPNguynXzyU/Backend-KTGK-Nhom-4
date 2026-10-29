@@ -7,6 +7,7 @@ import 'fingerprint.dart';
 import 'package:nfc_manager/nfc_manager.dart';
 import 'package:flutter_web_auth_2/flutter_web_auth_2.dart';
 import 'api.dart';
+import 'location_card.dart';
 
 void main() => runApp(const ChildGuard());
 final api = Api();
@@ -21,6 +22,30 @@ class ChildGuard extends StatelessWidget {
     theme: ThemeData(
       useMaterial3: true,
       colorScheme: ColorScheme.fromSeed(seedColor: green),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          minimumSize: const Size(48, 52),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          minimumSize: const Size(48, 48),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+        ),
+      ),
+      listTileTheme: const ListTileThemeData(
+        contentPadding: EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+        iconColor: green,
+      ),
+      navigationBarTheme: const NavigationBarThemeData(
+        backgroundColor: Color(0xFFEAF1EB),
+        indicatorColor: Color(0xFFCBE9DC),
+      ),
       scaffoldBackgroundColor: const Color(0xFFF3F6F2),
       appBarTheme: const AppBarTheme(
         backgroundColor: Color(0xFFF3F6F2),
@@ -36,6 +61,7 @@ class ChildGuard extends StatelessWidget {
       ),
       cardTheme: CardThemeData(
         elevation: 0,
+        margin: const EdgeInsets.symmetric(vertical: 7),
         color: Colors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
       ),
@@ -128,17 +154,19 @@ class _LoginState extends State<Login> {
     setState(() => challenge = r['challengeId']);
     if (mounted) notify(context, r['message']);
   });
-  Future<void> biometric() => work(() async {
+  Future<void> biometric(LoginBiometric method) => work(() async {
     final auth = FingerprintAuth();
-    if (!await auth.available()) {
-      throw Exception('Thiết bị cần cảm biến và vân tay đã đăng ký.');
+    if (!await auth.available(method)) {
+      throw Exception(
+        'Không xác nhận được riêng ${method.label}. Android có thể chỉ cung cấp sinh trắc học chung; hãy dùng OTP.',
+      );
     }
     if (!mounted) return;
-    if (!await auth.authenticate(context)) return;
-    final token = await Api.storage.read(key: 'biometric_token');
+    if (!await auth.authenticate(context, method)) return;
+    final token = await Api.storage.read(key: method.storageKey);
     if (token == null) {
       throw Exception(
-        'Hãy đăng nhập bằng OTP và bật vân tay trong tài khoản trước.',
+        'Hãy đăng nhập và bật mở bằng ${method.label} trong Tài khoản trước.',
       );
     }
     api.token = token;
@@ -268,11 +296,12 @@ class _LoginState extends State<Login> {
                     icon: const Icon(Icons.account_circle_outlined),
                     label: const Text('Tiếp tục với Google'),
                   ),
-                  TextButton.icon(
-                    onPressed: busy ? null : biometric,
-                    icon: const Icon(Icons.fingerprint),
-                    label: const Text('Mở phiên bằng vân tay'),
-                  ),
+                  for (final method in LoginBiometric.values)
+                    TextButton.icon(
+                      onPressed: busy ? null : () => biometric(method),
+                      icon: Icon(method.icon),
+                      label: Text('Mở bằng ${method.label}'),
+                    ),
                 ],
                 TextButton(
                   onPressed: busy
@@ -465,19 +494,21 @@ class _HomeState extends State<Home> {
     ).pushReplacement(MaterialPageRoute(builder: (_) => const Login()));
   }
 
-  Future<void> enableFinger() async {
+  Future<void> enableFinger(LoginBiometric method) async {
     try {
       final auth = FingerprintAuth();
-      if (!await auth.available()) {
-        throw Exception('Hãy đăng ký vân tay trong cài đặt Android.');
+      if (!await auth.available(method)) {
+        throw Exception(
+          'Không xác nhận được riêng ${method.label} trên thiết bị này. Hãy dùng OTP.',
+        );
       }
       if (!mounted) return;
-      if (await auth.authenticate(context)) {
-        await Api.storage.write(key: 'biometric_token', value: api.token);
+      if (await auth.authenticate(context, method)) {
+        await Api.storage.write(key: method.storageKey, value: api.token);
         if (mounted) {
           notify(
             context,
-            'Đã bật vân tay. Phiên hết hạn sau 12 giờ; sau đó cần OTP.',
+            'Đã bật ${method.label}. Phiên hết hạn sau 12 giờ; sau đó cần đăng nhập lại.',
           );
         }
       }
@@ -547,26 +578,45 @@ class _HomeState extends State<Home> {
                   ),
                 ),
               ),
-              Card(
-                child: ListTile(
-                  leading: const Icon(Icons.fingerprint),
-                  title: const Text('Bật mở phiên bằng vân tay'),
-                  subtitle: const Text(
-                    'Cần đăng nhập OTP trước; không gửi vân tay lên server',
+              for (final method in LoginBiometric.values)
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(8),
+                    child: Column(
+                      children: [
+                        ListTile(
+                          leading: Icon(method.icon),
+                          title: Text('Đăng nhập bằng ${method.label}'),
+                          subtitle: const Text(
+                            'Cài đặt riêng. Chỉ hoạt động khi hệ điều hành xác định đúng phương thức; nếu không, dùng OTP.',
+                          ),
+                        ),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            TextButton(
+                              onPressed: () async {
+                                await Api.storage.delete(
+                                  key: method.storageKey,
+                                );
+                                if (context.mounted) {
+                                  notify(context, 'Đã tắt ${method.label}');
+                                }
+                              },
+                              child: const Text('Tắt'),
+                            ),
+                            FilledButton.icon(
+                              onPressed: () => enableFinger(method),
+                              icon: Icon(method.icon),
+                              label: const Text('Bật'),
+                            ),
+                            const SizedBox(width: 12),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
-                  onTap: enableFinger,
                 ),
-              ),
-              Card(
-                child: ListTile(
-                  leading: const Icon(Icons.lock_reset),
-                  title: const Text('Tắt mở phiên bằng vân tay'),
-                  onTap: () async {
-                    await Api.storage.delete(key: 'biometric_token');
-                    if (context.mounted) notify(context, 'Đã tắt vân tay');
-                  },
-                ),
-              ),
               const SizedBox(height: 16),
               OutlinedButton.icon(
                 onPressed: logout,
@@ -1228,6 +1278,8 @@ class _ChildPageState extends State<ChildPage> {
                     ),
                   ),
                 ),
+                const SizedBox(height: 24),
+                LocationCard(api: api, childId: id, canShare: !widget.isParent),
                 const SizedBox(height: 24),
                 const Text(
                   'Điểm chạm an tâm',

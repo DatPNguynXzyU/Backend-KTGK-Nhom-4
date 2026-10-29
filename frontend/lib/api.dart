@@ -3,14 +3,19 @@ import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class Api {
-  static const base = String.fromEnvironment('API_BASE_URL', defaultValue: 'https://phamnguyentuandat-2380614580-api.onrender.com');
+  static const base = String.fromEnvironment(
+    'API_BASE_URL',
+    defaultValue: 'https://phamnguyentuandat-2380614580-api.onrender.com',
+  );
   static const storage = FlutterSecureStorage();
   String? token;
   bool get configured {
     final uri = Uri.tryParse(base);
-    return uri != null && uri.host.isNotEmpty &&
+    return uri != null &&
+        uri.host.isNotEmpty &&
         (uri.scheme == 'https' ||
-          (const bool.fromEnvironment('ALLOW_LOCAL_HTTP') && uri.scheme == 'http'));
+            (const bool.fromEnvironment('ALLOW_LOCAL_HTTP') &&
+                uri.scheme == 'http'));
   }
 
   Future<dynamic> call(
@@ -19,7 +24,9 @@ class Api {
     Map<String, dynamic>? data,
   ]) async {
     if (!configured) {
-      throw Exception('Cần cấu hình API_BASE_URL; HTTP nội bộ cần ALLOW_LOCAL_HTTP=true.');
+      throw Exception(
+        'Cần cấu hình API_BASE_URL; HTTP nội bộ cần ALLOW_LOCAL_HTTP=true.',
+      );
     }
     final request = http.Request(method, Uri.parse('$base$path'));
     request.headers.addAll({
