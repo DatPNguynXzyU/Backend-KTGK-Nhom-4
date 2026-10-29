@@ -69,3 +69,8 @@ Bản này quản lý hồ sơ/kế hoạch, chưa phải sản phẩm kiểm so
 
 Chưa triển khai lên tài khoản Render của sinh viên theo lựa chọn tự triển khai. SMTP/Google OAuth/vân tay/NFC cần xác nhận end-to-end sau khi cấu hình dịch vụ và có phần cứng. Xem `TEST_PLAN.md` và `VERIFICATION.md` để biết kết quả kiểm tra thực tế.
 
+
+## Cập nhật vân tay bằng Flutter
+Logic vân tay do nhóm viết đã chuyển sang Dart qua package local_auth. MainActivity chỉ còn lớp khởi động FlutterFragmentActivity chuẩn, không có MethodChannel hay thuật toán xác thực Kotlin riêng. Thư viện Flutter vẫn có mã Android nội bộ để gọi phần cứng.
+
+Để giữ phạm vi không dùng khuôn mặt, ứng dụng chỉ bật khi plugin báo rõ fingerprint và không báo face/iris. Trên Android mới plugin có thể chỉ trả strong/weak; lúc đó ứng dụng từ chối mở bằng vân tay và yêu cầu OTP. local_auth không bảo đảm lựa chọn riêng một loại sinh trắc trên mọi thiết bị; cần thử trên máy mục tiêu. Các mô tả FingerprintManager/MethodChannel cũ trong tài liệu được thay bằng phần cập nhật này.

@@ -1,53 +1,28 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:local_auth/local_auth.dart';
 
-/// Android's fingerprint-specific API prevents face authentication fallback.
+/// Fail closed when the platform cannot identify fingerprint specifically.
 class FingerprintAuth {
-  static const channel = MethodChannel('childguard/fingerprint');
-  Future<bool> available() async =>
-      await channel.invokeMethod<bool>('available') ?? false;
+  final LocalAuthentication _auth = LocalAuthentication();
+  Future<bool> available() async {
+    final types = await _auth.getAvailableBiometrics();
+    return types.contains(BiometricType.fingerprint) &&
+        !types.contains(BiometricType.face) &&
+        !types.contains(BiometricType.iris);
+  }
+
   Future<bool> authenticate(BuildContext context) async {
     if (!await available()) {
       throw Exception(
-        'Thiết bị cần cảm biến và vân tay đã đăng ký trong Android Settings.',
+        'Không xác nhận được phương thức chỉ dùng vân tay. Hãy đăng nhập bằng OTP.',
       );
     }
-    if (!context.mounted) return false;
-    bool closed = false;
-    final dialog = showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => PopScope(
-        canPop: false,
-        child: AlertDialog(
-          title: const Text('Xác thực vân tay'),
-          content: const Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.fingerprint, size: 72, color: Color(0xFF23816C)),
-              SizedBox(height: 16),
-              Text('Chạm ngón tay vào cảm biến vân tay của điện thoại.'),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () async {
-                await channel.invokeMethod('cancel');
-              },
-              child: const Text('Hủy'),
-            ),
-          ],
-        ),
+    return _auth.authenticate(
+      localizedReason: 'Dùng vân tay để mở phiên ChildGuard',
+      options: const AuthenticationOptions(
+        biometricOnly: true,
+        stickyAuth: true,
       ),
     );
-    try {
-      return await channel.invokeMethod<bool>('authenticate') ?? false;
-    } finally {
-      if (context.mounted && !closed) {
-        closed = true;
-        Navigator.of(context, rootNavigator: true).pop();
-      }
-      await dialog;
-    }
   }
 }
