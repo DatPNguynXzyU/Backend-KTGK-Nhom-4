@@ -337,6 +337,85 @@ class _HomeState extends State<Home> {
     }
   }
 
+  Future<void> manageUser(Map<String, dynamic> user) async {
+    const labels = {
+      'parent': 'Phụ huynh',
+      'child': 'Trẻ em',
+      'staff': 'Nhân viên',
+      'admin': 'Quản trị viên',
+    };
+    final selected = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(user['name']),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(user['email']),
+            Text('Vai trò: ${labels[user['role']] ?? user['role']}'),
+            Text(
+              user['verified'] == true
+                  ? 'Email đã xác minh'
+                  : 'Email chưa xác minh',
+            ),
+            const SizedBox(height: 16),
+            if (user['role'] == 'admin')
+              const Text(
+                'Tài khoản quản trị được bảo vệ, không thể đổi quyền tại đây.',
+              )
+            else
+              ...['parent', 'child', 'staff'].map(
+                (role) => ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(labels[role]!),
+                  trailing: user['role'] == role
+                      ? const Icon(Icons.check)
+                      : const Icon(Icons.chevron_right),
+                  onTap: user['role'] == role
+                      ? null
+                      : () => Navigator.pop(ctx, role),
+                ),
+              ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Đóng'),
+          ),
+        ],
+      ),
+    );
+    if (selected == null || !mounted) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Xác nhận đổi quyền'),
+        content: Text('Đổi ${user['name']} thành ${labels[selected]}?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Hủy'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Xác nhận'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    await execute(() async {
+      await api.call('PATCH', '/admin/users/${user['id']}/role', {
+        'role': selected,
+      });
+      if (mounted) {
+        notify(context, 'Đã cập nhật quyền thành ${labels[selected]}');
+      }
+    });
+  }
+
   Future<void> execute(Future<void> Function() fn) async {
     try {
       await fn();
@@ -583,25 +662,13 @@ class _HomeState extends State<Home> {
                       child: ListTile(
                         title: Text(u['name']),
                         subtitle: Text('${u['email']} • ${u['role']}'),
-                        trailing: u['role'] == 'admin'
-                            ? const Icon(Icons.verified_user)
-                            : PopupMenuButton<String>(
-                                onSelected: (r) => execute(() async {
-                                  await api.call(
-                                    'PATCH',
-                                    '/admin/users/${u['id']}/role',
-                                    {'role': r},
-                                  );
-                                }),
-                                itemBuilder: (_) => ['parent', 'child', 'staff']
-                                    .map(
-                                      (r) => PopupMenuItem(
-                                        value: r,
-                                        child: Text(r),
-                                      ),
-                                    )
-                                    .toList(),
-                              ),
+                        onTap: () => manageUser(Map<String, dynamic>.from(u)),
+                        trailing: IconButton(
+                          tooltip: 'Quản lý tài khoản',
+                          onPressed: () =>
+                              manageUser(Map<String, dynamic>.from(u)),
+                          icon: const Icon(Icons.manage_accounts_outlined),
+                        ),
                       ),
                     ),
                   ),
@@ -1221,5 +1288,3 @@ class _ChildPageState extends State<ChildPage> {
     );
   }
 }
-
-
