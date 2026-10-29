@@ -92,6 +92,25 @@ export function createApp({pool,sendMail,env=process.env}) {
  app.put('/children/:id/nfc',roles('parent'),run(async(req,res)=>{await parentOwned(idSchema.parse(req.params.id),req.user);const tag=z.string().regex(/^[a-f0-9]{64}$/).parse(req.body.tagHash);await q('UPDATE children SET nfc_hash=$2 WHERE id=$1',[req.params.id,tag]);res.json({message:'Đã gắn thẻ NFC'});}));
  app.post('/children/:id/checkins',roles('parent','child'),run(async(req,res)=>{const c=await owned(idSchema.parse(req.params.id),req.user);if(!c.nfc_hash || c.nfc_hash!==req.body.tagHash)fail(403,'Thẻ NFC không khớp');res.status(201).json((await q('INSERT INTO checkins(id,child_id) VALUES($1,$2) RETURNING *',[randomUUID(),c.id])).rows[0]);}));
  app.get('/children/:id/checkins',run(async(req,res)=>{await owned(idSchema.parse(req.params.id),req.user);res.json((await q('SELECT * FROM checkins WHERE child_id=$1 ORDER BY created_at DESC LIMIT 50',[req.params.id])).rows);}));
+ app.get('/children/:id/location',run(async(req,res)=>{
+  await owned(idSchema.parse(req.params.id),req.user);
+  const location=(await q('SELECT * FROM shared_locations WHERE child_id=$1',[req.params.id])).rows[0];
+  res.json(location || null);
+ }));
+ const linkedChild=async(id,u)=>{
+  if(u.role!=='child')fail(403,'Chỉ tài khoản trẻ được chia sẻ vị trí của mình');
+  const link=(await q('SELECT * FROM child_links WHERE child_id=$1 AND user_id=$2',[id,u.id])).rows[0];
+  if(!link)fail(404,'Không tìm thấy liên kết');
+ };
+ app.put('/children/:id/location',run(async(req,res)=>{
+  const id=idSchema.parse(req.params.id);await linkedChild(id,req.user);
+  const b=z.object({latitude:z.number().min(-90).max(90),longitude:z.number().min(-180).max(180),accuracy:z.number().min(0).max(100000)}).parse(req.body);
+  res.json((await q('INSERT INTO shared_locations(child_id,latitude,longitude,accuracy) VALUES($1,$2,$3,$4) ON CONFLICT(child_id) DO UPDATE SET latitude=$2,longitude=$3,accuracy=$4,updated_at=now() RETURNING *',[id,b.latitude,b.longitude,b.accuracy])).rows[0]);
+ }));
+ app.delete('/children/:id/location',run(async(req,res)=>{
+  const id=idSchema.parse(req.params.id);await linkedChild(id,req.user);
+  await q('DELETE FROM shared_locations WHERE child_id=$1',[id]);res.status(204).end();
+ }));
  app.get('/staff/dashboard',roles('staff','admin'),run(async(req,res)=>res.json((await q('SELECT (SELECT count(*) FROM users) AS users,(SELECT count(*) FROM children) AS children,(SELECT count(*) FROM devices) AS devices')).rows[0])));
  app.get('/admin/users',roles('admin'),run(async(req,res)=>res.json((await q('SELECT id,email,username,name,role,verified FROM users ORDER BY created_at DESC LIMIT 200')).rows)));
  app.patch('/admin/users/:id/role',roles('admin'),run(async(req,res)=>{const id=idSchema.parse(req.params.id);const role=z.enum(['parent','child','staff']).parse(req.body.role);if(id===req.user.id)fail(400,'Không thể đổi quyền chính mình');const u=(await q("UPDATE users SET role=$2 WHERE id=$1 AND role<>'admin' RETURNING *",[id,role])).rows[0];if(!u)fail(404,'Không tìm thấy hoặc không được đổi quyền quản trị');res.json(publicUser(u));}));

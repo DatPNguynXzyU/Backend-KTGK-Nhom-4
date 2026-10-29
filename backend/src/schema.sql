@@ -35,3 +35,9 @@ CREATE TABLE IF NOT EXISTS child_links (
  user_id uuid UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
  child_id uuid UNIQUE NOT NULL REFERENCES children(id) ON DELETE CASCADE
 );
+
+CREATE TABLE IF NOT EXISTS shared_locations (
+ child_id uuid PRIMARY KEY REFERENCES children(id) ON DELETE CASCADE,
+ latitude double precision NOT NULL, longitude double precision NOT NULL,
+ accuracy double precision NOT NULL, updated_at timestamptz NOT NULL DEFAULT now()
+);

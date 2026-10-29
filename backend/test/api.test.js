@@ -71,3 +71,20 @@ test('Google exchange for password account requires OTP and preserves account',a
  assert.equal(verified.body.user.id,u.user.id);
  await request(app).post('/auth/google/exchange').send({code,verifier}).expect(401);
 });
+
+test('location is opt-in, isolated by family and removable by linked child',async()=>{
+ const parent=await register('locparent'),child=await register('locchild'),other=await register('locother');
+ await pool.query("UPDATE users SET role='child' WHERE id=$1",[child.user.id]);
+ const c=(await request(app).post('/children').set(agent(parent.token)).send({name:'An',age:9,daily_limit:90}).expect(201)).body;
+ await pool.query('INSERT INTO child_links(user_id,child_id) VALUES($1,$2)',[child.user.id,c.id]);
+ const path='/children/'+c.id+'/location';
+ const point={latitude:10.8,longitude:106.7,accuracy:15};
+ await request(app).put(path).set(agent(parent.token)).send(point).expect(403);
+ await request(app).put(path).set(agent(child.token)).send({...point,latitude:999}).expect(400);
+ await request(app).put(path).set(agent(child.token)).send(point).expect(200);
+ const r=await request(app).get(path).set(agent(parent.token)).expect(200);assert.equal(r.body.latitude,10.8);
+ await request(app).get(path).set(agent(other.token)).expect(404);
+ await request(app).delete(path).set(agent(other.token)).expect(403);
+ await request(app).delete(path).set(agent(child.token)).expect(204);
+ const empty=await request(app).get(path).set(agent(parent.token)).expect(200);assert.equal(empty.body,null);
+});
