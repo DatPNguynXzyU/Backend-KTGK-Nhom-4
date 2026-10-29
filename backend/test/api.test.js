@@ -88,3 +88,13 @@ test('location is opt-in, isolated by family and removable by linked child',asyn
  await request(app).delete(path).set(agent(child.token)).expect(204);
  const empty=await request(app).get(path).set(agent(parent.token)).expect(200);assert.equal(empty.body,null);
 });
+
+ test('API console is public while data remains protected',async()=>{
+  const page=await request(app).get('/swagger/index.html').expect(200).expect('Content-Type',/html/);
+  assert.match(page.text,/Khám phá API/);
+  assert.match(page.headers['content-security-policy'],/script-src 'self'/);
+  await request(app).get('/swagger/app.js').expect(200).expect('Content-Type',/javascript/);
+  await request(app).get('/swagger/style.css').expect(200).expect('Content-Type',/css/);
+  await request(app).get('/children').expect(401);
+  await request(app).get('/admin/users').expect(401);
+ });

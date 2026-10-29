@@ -1,4 +1,5 @@
 import express from 'express';
+import {fileURLToPath} from 'node:url';
 import helmet from 'helmet';
 import cors from 'cors';
 import rateLimit from 'express-rate-limit';
@@ -13,6 +14,8 @@ export function createApp({pool,sendMail,env=process.env}) {
  app.set('trust proxy',1); app.use(helmet());
  app.use(cors({origin:env.ALLOWED_ORIGIN?.split(',') || false}));
  app.use(express.json({limit:'32kb'}));
+ // Public API console assets; data endpoints below still require authentication.
+ app.use('/swagger',express.static(fileURLToPath(new URL('../public/swagger/',import.meta.url)),{index:'index.html'}));
  const run=(fn)=>(req,res,next)=>Promise.resolve(fn(req,res)).catch(next);
  const q=(sql,args=[])=>pool.query(sql,args);
  const fail=(status,message)=>{const e=new Error(message);e.status=status;throw e;};
