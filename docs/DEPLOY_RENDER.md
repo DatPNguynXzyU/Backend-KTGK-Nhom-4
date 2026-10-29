@@ -1,3 +1,7 @@
+# Cập nhật: Render Free dùng Resend HTTPS
+
+Làm theo [hướng dẫn Resend](RESEND.md) thay cho phần SMTP bên dưới.
+
 # Triển khai Render và chia sẻ cho nhóm
 
 ## 1. Chuẩn bị repository

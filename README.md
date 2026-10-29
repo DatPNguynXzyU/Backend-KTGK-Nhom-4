@@ -1,3 +1,7 @@
+# Triển khai Render
+
+Cách chạy chính: triển khai backend lên Render theo [hướng dẫn](docs/DEPLOY_RENDER.md), sau đó chạy Flutter với URL HTTPS của service. Cách chạy nội bộ trong docs/CHAY_LOCAL.md chỉ dùng khi cần phát triển.
+
 # PhamNguyenTuanDat_2380614580 — ChildGuard
 
 Ứng dụng Flutter Android quản lý hồ sơ điện thoại trẻ em, kế hoạch thời gian số và thỏa thuận tích cực giữa phụ huynh với trẻ.
@@ -48,3 +52,4 @@ APK tại `frontend/build/app/outputs/flutter-apk/app-debug.apk`. Bản debug ph
 Chỉ thực hiện vân tay và NFC theo yêu cầu; không QR/Barcode, khuôn mặt, GPS, video, cảm biến hay dịch thời gian thực. Hai khả năng này nằm trong mục e; cần xác nhận tiêu chí “3 trong 6” với giảng viên.
 
 Xem [báo cáo](docs/BAO_CAO.md), [API](docs/API.md), [kịch bản kiểm thử](docs/TEST_PLAN.md).
+

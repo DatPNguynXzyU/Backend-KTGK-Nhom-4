@@ -8,12 +8,9 @@ class Api {
   String? token;
   bool get configured {
     final uri = Uri.tryParse(base);
-    return uri != null &&
-        uri.scheme == 'https' &&
-        uri.host.isNotEmpty &&
-        uri.host != 'localhost' &&
-        uri.host != '127.0.0.1' &&
-        !uri.host.startsWith('192.168.');
+    return uri != null && uri.host.isNotEmpty &&
+        (uri.scheme == 'https' ||
+          (const bool.fromEnvironment('ALLOW_LOCAL_HTTP') && uri.scheme == 'http'));
   }
 
   Future<dynamic> call(
@@ -22,7 +19,7 @@ class Api {
     Map<String, dynamic>? data,
   ]) async {
     if (!configured) {
-      throw Exception('Cần cấu hình API_BASE_URL bằng URL HTTPS của Render.');
+      throw Exception('Cần cấu hình API_BASE_URL; HTTP nội bộ cần ALLOW_LOCAL_HTTP=true.');
     }
     final request = http.Request(method, Uri.parse('$base$path'));
     request.headers.addAll({

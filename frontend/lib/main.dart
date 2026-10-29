@@ -151,7 +151,7 @@ class _LoginState extends State<Login> {
     }
   });
   Future<void> google() => work(() async {
-    if (!api.configured) throw Exception('Cần cấu hình URL Render trước.');
+    if (!api.configured) throw Exception('Cần cấu hình địa chỉ backend trước.');
     final verifier = base64UrlEncode(
       List<int>.generate(32, (_) => Random.secure().nextInt(256)),
     );
@@ -215,7 +215,7 @@ class _LoginState extends State<Login> {
                   const Padding(
                     padding: EdgeInsets.only(bottom: 16),
                     child: Text(
-                      'Chưa cấu hình máy chủ. Xem README để kết nối Render.',
+                      'Chưa cấu hình máy chủ. Xem hướng dẫn chạy backend để kết nối.',
                       style: TextStyle(color: Colors.deepOrange),
                     ),
                   ),
@@ -1221,4 +1221,5 @@ class _ChildPageState extends State<ChildPage> {
     );
   }
 }
+
 
