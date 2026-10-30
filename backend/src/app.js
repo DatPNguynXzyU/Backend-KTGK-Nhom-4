@@ -76,6 +76,11 @@ export function createApp({pool,sendMail,env=process.env}) {
  }));
  app.use(authenticated);
  app.get('/me',(req,res)=>res.json(publicUser(req.user)));
+ app.patch('/me',run(async(req,res)=>{
+  const b=z.object({name:z.string().trim().min(2).max(80),username:z.string().trim().regex(/^[a-zA-Z0-9_]{3,32}$/)}).strict().parse(req.body);
+  const u=(await q('UPDATE users SET name=$2,username=$3 WHERE id=$1 RETURNING *',[req.user.id,b.name,b.username.toLowerCase()])).rows[0];
+  res.json(publicUser(u));
+ }));
  app.get('/children',run(async(req,res)=>res.json((await q('SELECT c.* FROM children c LEFT JOIN child_links l ON l.child_id=c.id WHERE c.parent_id=$1 OR l.user_id=$1 ORDER BY c.created_at DESC',[req.user.id])).rows)));
  const childBody=z.object({name:z.string().trim().min(1).max(80),age:z.number().int().min(1).max(17),daily_limit:z.number().int().min(15).max(1440)});
  app.post('/children',roles('parent'),run(async(req,res)=>{const b=childBody.parse(req.body);res.status(201).json((await q('INSERT INTO children(id,parent_id,name,age,daily_limit) VALUES($1,$2,$3,$4,$5) RETURNING *',[randomUUID(),req.user.id,b.name,b.age,b.daily_limit])).rows[0]);}));

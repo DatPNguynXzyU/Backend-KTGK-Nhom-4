@@ -98,3 +98,15 @@ test('location is opt-in, isolated by family and removable by linked child',asyn
   await request(app).get('/children').expect(401);
   await request(app).get('/admin/users').expect(401);
  });
+
+test('profile updates only self and refuses privilege or email changes',async()=>{
+ const a=await register('profile_a'),b=await register('profile_b');
+ await request(app).patch('/me').send({name:'New Name',username:'newname'}).expect(401);
+ await request(app).patch('/me').set(agent(a.token)).send({name:'New Name',username:'newname',role:'admin'}).expect(400);
+ await request(app).patch('/me').set(agent(a.token)).send({name:'New Name',username:'newname',email:'other@example.com'}).expect(400);
+ await request(app).patch('/me').set(agent(a.token)).send({name:'New Name',username:'profile_b'}).expect(409);
+ const result=await request(app).patch('/me').set(agent(a.token)).send({name:'New Name',username:'NEWNAME'}).expect(200);
+ assert.equal(result.body.username,'newname');assert.equal(result.body.role,'parent');assert.equal(result.body.password,undefined);
+ assert.equal((await request(app).get('/me').set(agent(b.token))).body.username,'profile_b');
+ await request(app).post('/auth/login').send({username:'newname',password:'StrongPass123!'}).expect(200);
+});
