@@ -8,65 +8,84 @@ import 'package:nfc_manager/nfc_manager.dart';
 import 'package:flutter_web_auth_2/flutter_web_auth_2.dart';
 import 'api.dart';
 import 'location_card.dart';
+import 'settings.dart';
 
-void main() => runApp(const ChildGuard());
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await appearance.load();
+  runApp(const ChildGuard());
+}
+
 final api = Api();
 const ink = Color(0xFF183C37), green = Color(0xFF23816C);
 
 class ChildGuard extends StatelessWidget {
   const ChildGuard({super.key});
   @override
-  Widget build(BuildContext context) => MaterialApp(
-    title: 'ChildGuard',
-    debugShowCheckedModeBanner: false,
-    theme: ThemeData(
-      useMaterial3: true,
-      colorScheme: ColorScheme.fromSeed(seedColor: green),
-      filledButtonTheme: FilledButtonThemeData(
-        style: FilledButton.styleFrom(
-          minimumSize: const Size(48, 52),
-          shape: RoundedRectangleBorder(
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: appearance,
+    builder: (context, _) => MaterialApp(
+      title: 'ChildGuard',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        useMaterial3: true,
+        colorScheme: ColorScheme.fromSeed(seedColor: green),
+        filledButtonTheme: FilledButtonThemeData(
+          style: FilledButton.styleFrom(
+            minimumSize: const Size(48, 52),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+          ),
+        ),
+        outlinedButtonTheme: OutlinedButtonThemeData(
+          style: OutlinedButton.styleFrom(
+            minimumSize: const Size(48, 48),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+          ),
+        ),
+        listTileTheme: const ListTileThemeData(
+          contentPadding: EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+          iconColor: green,
+        ),
+        navigationBarTheme: const NavigationBarThemeData(
+          backgroundColor: Color(0xFFEAF1EB),
+          indicatorColor: Color(0xFFCBE9DC),
+        ),
+        scaffoldBackgroundColor: Color(appearance.background),
+        appBarTheme: AppBarTheme(
+          backgroundColor: Color(appearance.background),
+          foregroundColor: ink,
+        ),
+        inputDecorationTheme: InputDecorationTheme(
+          filled: true,
+          fillColor: Colors.white,
+          border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide.none,
+          ),
+        ),
+        cardTheme: CardThemeData(
+          elevation: 0,
+          margin: const EdgeInsets.symmetric(vertical: 7),
+          color: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(22),
           ),
         ),
       ),
-      outlinedButtonTheme: OutlinedButtonThemeData(
-        style: OutlinedButton.styleFrom(
-          minimumSize: const Size(48, 48),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(
+          textScaler: TextScaler.linear(
+            MediaQuery.textScalerOf(context).scale(1) * appearance.scale,
           ),
         ),
+        child: child!,
       ),
-      listTileTheme: const ListTileThemeData(
-        contentPadding: EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-        iconColor: green,
-      ),
-      navigationBarTheme: const NavigationBarThemeData(
-        backgroundColor: Color(0xFFEAF1EB),
-        indicatorColor: Color(0xFFCBE9DC),
-      ),
-      scaffoldBackgroundColor: const Color(0xFFF3F6F2),
-      appBarTheme: const AppBarTheme(
-        backgroundColor: Color(0xFFF3F6F2),
-        foregroundColor: ink,
-      ),
-      inputDecorationTheme: InputDecorationTheme(
-        filled: true,
-        fillColor: Colors.white,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide.none,
-        ),
-      ),
-      cardTheme: CardThemeData(
-        elevation: 0,
-        margin: const EdgeInsets.symmetric(vertical: 7),
-        color: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
-      ),
+      home: const Login(),
     ),
-    home: const Login(),
   );
 }
 
@@ -122,14 +141,72 @@ class _LoginState extends State<Login> {
     }
   }
 
-  Future<void> enter(Map<String, dynamic> result) async {
+  Future<void> enter(
+    Map<String, dynamic> result, {
+    bool offerBiometrics = false,
+  }) async {
     api.token = result['token'];
+    if (offerBiometrics) {
+      // A new account/session must never leave an older account enrolled.
+      for (final method in LoginBiometric.values) {
+        await Api.storage.delete(key: method.storageKey);
+      }
+      await offerBiometricSetup();
+    }
     if (!mounted) return;
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(
         builder: (_) => Home(user: Map<String, dynamic>.from(result['user'])),
       ),
     );
+  }
+
+  Future<void> offerBiometricSetup() async {
+    if (!mounted) return;
+    final selected = await showDialog<LoginBiometric>(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: const Text('Đăng nhập nhanh lần sau'),
+        children: [
+          const Padding(
+            padding: EdgeInsets.all(20),
+            child: Text(
+              'Lưu phiên an toàn trên điện thoại, không lưu mật khẩu. '
+              'Chọn sinh trắc học thiết bị để Android quyết định dùng khuôn mặt '
+              'hoặc vân tay đã cài đặt. Phiên có hiệu lực tối đa 12 giờ; '
+              'đăng xuất sẽ xóa phiên đã lưu.',
+            ),
+          ),
+          for (final method in [
+            LoginBiometric.device,
+            LoginBiometric.face,
+            LoginBiometric.fingerprint,
+          ])
+            SimpleDialogOption(
+              onPressed: () => Navigator.pop(ctx, method),
+              child: Text('Bật ${method.label}'),
+            ),
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Để sau'),
+          ),
+        ],
+      ),
+    );
+    if (selected == null || !mounted) return;
+    try {
+      if (await FingerprintAuth().authenticate(context, selected)) {
+        await Api.storage.write(key: selected.storageKey, value: api.token);
+        if (mounted) {
+          notify(
+            context,
+            'Đã lưu phiên. Lần mở app sau chọn Mở bằng ${selected.label}.',
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) notify(context, e);
+    }
   }
 
   Future<void> submit() => work(() async {
@@ -141,6 +218,7 @@ class _LoginState extends State<Login> {
             'code': code.text.trim(),
           }),
         ),
+        offerBiometrics: true,
       );
       return;
     }
@@ -155,26 +233,28 @@ class _LoginState extends State<Login> {
     if (mounted) notify(context, r['message']);
   });
   Future<void> biometric(LoginBiometric method) => work(() async {
-    final auth = FingerprintAuth();
-    if (!await auth.available(method)) {
+    final token = await Api.storage.read(key: method.storageKey);
+    if (token == null || token.isEmpty) {
       throw Exception(
-        'Không xác nhận được riêng ${method.label}. Android có thể chỉ cung cấp sinh trắc học chung; hãy dùng OTP.',
+        'Chưa có phiên ${method.label} đã lưu. Đăng nhập OTP rồi bật phương thức này. Khi thử lại, chọn Khóa app thay vì Đăng xuất.',
       );
     }
+    final auth = FingerprintAuth();
     if (!mounted) return;
     if (!await auth.authenticate(context, method)) return;
-    final token = await Api.storage.read(key: method.storageKey);
-    if (token == null) {
-      throw Exception(
-        'Hãy đăng nhập và bật mở bằng ${method.label} trong Tài khoản trước.',
-      );
-    }
     api.token = token;
     try {
       final u = await api.call('GET', '/me');
       await enter({'token': token, 'user': u});
     } catch (e) {
-      await api.logout();
+      api.lock();
+      if (e is ApiException && e.statusCode == 401) {
+        await api.logout();
+        throw Exception(
+          'Phiên đã hết hạn hoặc tài khoản không còn hợp lệ. Hãy đăng nhập mật khẩu + OTP và bật lại sinh trắc học.',
+        );
+      }
+      // Connectivity/server errors must not erase biometric enrollment.
       rethrow;
     }
   });
@@ -486,6 +566,13 @@ class _HomeState extends State<Home> {
     });
   }
 
+  void lockApp() {
+    api.lock();
+    Navigator.of(
+      context,
+    ).pushReplacement(MaterialPageRoute(builder: (_) => const Login()));
+  }
+
   Future<void> logout() async {
     await api.logout();
     if (!mounted) return;
@@ -499,7 +586,7 @@ class _HomeState extends State<Home> {
       final auth = FingerprintAuth();
       if (!await auth.available(method)) {
         throw Exception(
-          'Không xác nhận được riêng ${method.label} trên thiết bị này. Hãy dùng OTP.',
+          'Chưa có sinh trắc học phù hợp được đăng ký trên điện thoại.',
         );
       }
       if (!mounted) return;
@@ -527,7 +614,21 @@ class _HomeState extends State<Home> {
           Text('ChildGuard', style: TextStyle(fontWeight: FontWeight.w800)),
         ],
       ),
-      actions: [IconButton(onPressed: load, icon: const Icon(Icons.refresh))],
+      actions: [
+        IconButton(
+          tooltip: 'Cài đặt',
+          icon: const Icon(Icons.settings_outlined),
+          onPressed: () async {
+            await Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => SettingsPage(api: api, user: widget.user),
+              ),
+            );
+            if (mounted) setState(() {});
+          },
+        ),
+        IconButton(onPressed: load, icon: const Icon(Icons.refresh)),
+      ],
     ),
     bottomNavigationBar: NavigationBar(
       selectedIndex: page,
@@ -588,7 +689,7 @@ class _HomeState extends State<Home> {
                           leading: Icon(method.icon),
                           title: Text('Đăng nhập bằng ${method.label}'),
                           subtitle: const Text(
-                            'Cài đặt riêng. Chỉ hoạt động khi hệ điều hành xác định đúng phương thức; nếu không, dùng OTP.',
+                            'Lưu phiên riêng cho từng nút. Hộp thoại Android quyết định phương thức; nút khuôn mặt có thể vẫn yêu cầu vân tay.',
                           ),
                         ),
                         Row(
@@ -618,6 +719,12 @@ class _HomeState extends State<Home> {
                   ),
                 ),
               const SizedBox(height: 16),
+              FilledButton.icon(
+                onPressed: lockApp,
+                icon: const Icon(Icons.lock_outline),
+                label: const Text('Khóa app – giữ đăng nhập nhanh'),
+              ),
+              const SizedBox(height: 12),
               OutlinedButton.icon(
                 onPressed: logout,
                 icon: const Icon(Icons.logout),

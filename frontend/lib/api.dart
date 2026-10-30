@@ -2,6 +2,14 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
+class ApiException implements Exception {
+  const ApiException(this.statusCode, this.message);
+  final int statusCode;
+  final String message;
+  @override
+  String toString() => message;
+}
+
 class Api {
   static const base = String.fromEnvironment(
     'API_BASE_URL',
@@ -41,13 +49,29 @@ class Api {
         ? null
         : jsonDecode(response.body);
     if (response.statusCode >= 400) {
-      throw Exception(body?['message'] ?? 'Không kết nối được máy chủ');
+      throw ApiException(
+        response.statusCode,
+        body is Map
+            ? (body['message']?.toString() ?? 'Lỗi máy chủ')
+            : 'Lỗi máy chủ',
+      );
     }
     return body;
   }
 
+  void lock() {
+    token = null;
+  }
+
   Future<void> logout() async {
     token = null;
-    await storage.deleteAll();
+    for (final key in [
+      'face_token',
+      'fingerprint_token',
+      'device_biometric_token',
+      'biometric_token',
+    ]) {
+      await storage.delete(key: key);
+    }
   }
 }
